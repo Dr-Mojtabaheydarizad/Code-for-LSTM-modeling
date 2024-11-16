@@ -1,0 +1,92 @@
+
+# Load required libraries
+library(reticulate)
+library(kerastuneR)
+library(tensorflow)
+
+# Set the path to Python executable
+python_path <- "path/to/your/python.exe"
+use_python(python_path)
+
+# Define the complete Python code with various strategies
+lstm_python_code_with_hyperparam_tuning <- "
+import numpy as np
+import pandas as pd
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import r2_score
+from sklearn.model_selection import train_test_split, KFold
+from kerastuner.tuners import RandomSearch
+import os
+
+# Set the working directory to the path where the data file is located
+os.chdir('D:/Education/Water journal-2/LSTM')
+
+# Function to generate simulated data
+def generate_data():
+    np.random.seed(42)
+    X = np.random.randn(100, 30)  # Assuming 100 samples and 30 features
+    y = np.random.randn(100)  # Assuming a single target variable
+    return X, y
+
+# Define the search space for hyperparameter tuning
+def build_model(hp):
+    model = Sequential()
+    model.add(LSTM(units=hp.Int('units', min_value=32, max_value=128, step=32),
+                   input_shape=(1, input_features_scaled.shape[1]),
+                   activation='relu',
+                   return_sequences=True))
+    model.add(Dropout(rate=hp.Choice('dropout', values=[0.3, 0.5, 0.7])))
+    model.add(LSTM(units=hp.Int('units', min_value=32, max_value=128, step=32),
+                   activation='relu',
+                   return_sequences=True))
+    model.add(Dropout(rate=hp.Choice('dropout', values=[0.3, 0.5, 0.7])))
+    model.add(LSTM(units=hp.Int('units', min_value=32, max_value=128, step=32),
+                   activation='relu'))
+    model.add(Dropout(rate=hp.Choice('dropout', values=[0.3, 0.5, 0.7])))
+    model.add(Dense(1))
+    model.compile(optimizer='adam', loss='mean_squared_error', metrics=['accuracy'])
+    return model
+
+# Define K-fold cross-validation
+kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+
+# Perform hyperparameter tuning with K-fold cross-validation
+for fold_idx, (train_index, val_index) in enumerate(kfold.split(X)):
+    X, y = generate_data()
+    X_train, X_val = X[train_index], X[val_index]
+    y_train, y_val = y[train_index], y[val_index]
+
+    tuner = RandomSearch(
+        build_model,
+        objective='val_loss',
+        max_trials=5,
+        executions_per_trial=3,
+        directory='keras_tuner_logs',
+        project_name='lstm_hyperparam_tuning_fold_' + str(fold_idx)
+    )
+
+    tuner.search(X_train, y_train, epochs=50, validation_data=(X_val, y_val))
+
+    # Get the best hyperparameters
+    best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
+
+    # Build the model with the best hyperparameters
+    best_model = tuner.hypermodel.build(best_hps)
+    best_model.fit(X_train, y_train, epochs=50, validation_data=(X_val, y_val))
+
+    # Evaluate the model
+    loss_and_metrics <- best_model$evaluate(X_val, y_val)
+    print(paste('Loss:', loss_and_metrics[[1]], 'Accuracy:', loss_and_metrics[[2]]))
+
+    # Calculate R2 score
+    y_pred <- best_model$predict(X_val)
+    r2 <- r2_score(y_val, y_pred)
+    print(paste('R2 Score:', r2))
+}
+"
+
+# Execute the Python code directly
+py_run_string(lstm_python_code_with_hyperparam_tuning)
